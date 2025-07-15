@@ -6,16 +6,18 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; cong₂)
 
 -- qualifiers
+--! Qual {
 data Qual : Set where
-  𝟙 𝟚 : Qual
+  𝟙 𝟚  : Qual
+
+data _≤_ : Qual → Qual → Set where
+  ≤-bottop  : 𝟙 ≤ 𝟚
+  ≤-refl    : ∀ {q} → q ≤ q
+--! }
 
 variable
   q q₀ q₁ q₂ q₃ q₄ q′ q₁′ q₂′ : Qual
 
-
-data _≤_ : Qual → Qual → Set where
-  ≤-bottop  : 𝟙 ≤ 𝟚
-  ≤-refl : q ≤ q
 
 ≤-bot : 𝟙 ≤ q
 ≤-bot {𝟙} = ≤-refl

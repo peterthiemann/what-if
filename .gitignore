@@ -1,2 +1,13 @@
+.DS_Store
 *.agdai
 MAlonzo/**
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.ptb
+*.synctex.gz
+comment.cut
+.agdatex-hashes.json
+auto

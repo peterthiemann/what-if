@@ -1,0 +1,21 @@
+What I Always Wanted to Know About Second Class Values
+
+Second class values are allocated on the run-time stack and they may contain pointers
+to other values on the stack. The were first discussed in connection with the
+infamous funarg problem, but then forgotten as heap-allocated closures were
+discovered.
+
+Recent work has resurrected the interest in second class values as they allow us
+to safely allocate some data structures (e.g., closures) on the run-time stack.
+This approach has the advantage of avoiding the cost of garbage collection for
+these structures as their deallocation is for free when the stack is popped.
+A system with qualified types ensures that second class values do not
+escape across stack pops.
+
+We take a second look at this work with the following questions in focus.
+
+* What, exactly, is the meaning of the type qualifiers?
+* Can we implement this scheme with a type-based, selective CPS translation?
+* Can we extend the formal framework of previous work with first-class and
+  second-class references?
+

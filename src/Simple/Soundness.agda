@@ -40,8 +40,9 @@ record Assumption (Σₕ : HType) (Σₛ : SType) (𝓗 : Heap) (𝓢 : Stack) (
     ↓𝓔-wft : Wellformed-Env 𝓢 𝓔
 
 
-
-record Result (Σₕ : HType) (Σₛ : SType) (v : Val) (S : QType) (𝓗′ : Heap) (𝓢 𝓢′ : Stack) : Set where
+--! SoundnessResult
+record Result (Σₕ : HType) (Σₛ : SType) (v : Val) (S : QType)
+              (𝓗′ : Heap) (𝓢 𝓢′ : Stack) : Set where
   field
     ↑Σₕ′ : HType
     ↑Σₛ′ : SType
@@ -59,6 +60,7 @@ open Result
 
 ---- soundness theorem of evaluation
 
+--! EvalSoundness
 eval-soundness :
     Σₕ ⊢ₕ 𝓗
   → Σₕ , Σₛ ⊢ₛ 𝓢

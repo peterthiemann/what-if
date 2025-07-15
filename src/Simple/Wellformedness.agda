@@ -31,19 +31,32 @@ data Heap-Env : Env → Set where
 
   hpe-keep : Heap-Env 𝓔 → Heap-Env ⟨ s ≔ v , 𝓔 ⟩
 
+--! Wellformed {
 data Wellformed-Env (𝓢 : Stack) : Env → Set
 
 record Wellformed (𝓢 : Stack) (v : Val) : Set where
   constructor WFV
   inductive
   field
-    wfv : ∀ {𝓔}{𝓢ᶜ} → clos-stack-env v ≡ just (𝓔 , 𝓢ᶜ) → (q-val v ≡ 𝟙 → 𝓢ᶜ ≡ 𝓢∅ × Heap-Env 𝓔) × 𝓢ᶜ ≼ₛ 𝓢 × Wellformed-Env 𝓢ᶜ 𝓔 × Wellformed-Env 𝓢 𝓔
+    wfv : ∀ {𝓔}{𝓢ᶜ}
+        → clos-stack-env v ≡ just (𝓔 , 𝓢ᶜ)
+        → (q-val v ≡ 𝟙 → 𝓢ᶜ ≡ 𝓢∅ × Heap-Env 𝓔)
+        × 𝓢ᶜ ≼ₛ 𝓢
+        × Wellformed-Env 𝓢ᶜ 𝓔
+        × Wellformed-Env 𝓢 𝓔
 
 data Wellformed-Env 𝓢 where
 
-  wf-∅ : Wellformed-Env 𝓢 ∅
-  wf-ext-𝟙 : q-val v ≡ 𝟙 → Wellformed 𝓢 v → Wellformed-Env 𝓢 𝓔 → Wellformed-Env 𝓢 ⟨ s ≔ v , 𝓔 ⟩
-  wf-ext-𝟚 : just v ≡ (𝓢 ↓ᵥ a) → Wellformed 𝓢 v → Wellformed-Env 𝓢 𝓔 → Wellformed-Env 𝓢 ⟨ s ⇒ a , 𝓔 ⟩
+  wf-∅     : Wellformed-Env 𝓢 ∅
+  wf-ext-𝟙  : q-val v ≡ 𝟙
+            → Wellformed 𝓢 v
+            → Wellformed-Env 𝓢 𝓔
+            → Wellformed-Env 𝓢 ⟨ s ≔ v , 𝓔 ⟩
+  wf-ext-𝟚  : just v ≡ (𝓢 ↓ᵥ a)
+            → Wellformed 𝓢 v
+            → Wellformed-Env 𝓢 𝓔
+            → Wellformed-Env 𝓢 ⟨ s ⇒ a , 𝓔 ⟩
+--! }
 
 record Wellformed-List (𝓢 : Stack) (vs : List Val) : Set where
   constructor WFL
