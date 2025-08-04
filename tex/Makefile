@@ -19,7 +19,9 @@ all: $(GOAL).pdf
 
 ### agdatex
 
-runagdatex:
+runagdatex: latex/agda-generated.tex
+
+latex/agda-generated.tex: $(wildcard ../src/*agda) $(wildcard ../src/Simple/*.agda)
 	$(AGDATEX) -v -e latex/agda-generated.tex -r ../src ../src/*.agda ../src/Simple/*.agda
 
 ### clean up

@@ -11,6 +11,9 @@
 \usepackage{listings}
 \usepackage{agda}
 \usepackage{bbm}
+\usepackage{mathpartir}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
 
 \newcommand{\LamWhatif}{\ensuremath{\lambda^{1/2}_{\hookleftarrow}}}
 \newcommand{\LamOurs}{\ensuremath{\lambda^{1/2!}_{\hookleftarrow}}}
@@ -77,20 +80,22 @@ discovered.
 
 Recent work has resurrected the interest in second class values as they allow us
 to safely allocate some data structures (e.g., closures) on the run-time stack.
-This approach has the advantage of avoiding the cost of garbage collection for
-these structures as their deallocation has no extra cost when the stack is popped.
+This approach has the advantage of avoiding the cost and the
+unpredictable timing of garbage collection for
+these structures as their deallocation takes no extra time when the
+stack is popped. 
 A system with qualified types ensures that second class values do not
 escape across stack pops.
 
-We take a second look at this work with the following questions in focus.
+We take a second look at this work and extend/modify their formal framework
+with first-class and second-class references in the style of ML. Along
+the way we answer a question that left us mystified in the previous
+work:  What, exactly, is the meaning of a type qualifier? 
 
-\begin{itemize}
-\item What, exactly, is the meaning of a type qualifier?  
-\item Can we implement this scheme with a type-based, selective CPS
-  translation?
-\item Can we extend the formal framework of previous work
-  with first-class and second-class references?
-\end{itemize}
+% \begin{itemize}
+% \item Can we implement this scheme with a type-based, selective CPS
+%   translation?
+% \end{itemize}
 \end{abstract}
 
 %%
@@ -133,7 +138,10 @@ We take a second look at this work with the following questions in focus.
 %% This command processes the author and affiliation and title
 %% information and builds the first part of the formatted document.
 \maketitle
-\lstset{language=lisp}
+\lstset{language=python,morekeywords={Array,SArray},literate=
+  {->1}{$\rightarrow^1$}3
+  {->2}{$\rightarrow^2$}3}
+
 \section{Introduction}
 
 When the implementation of functional programming languages was still
@@ -150,7 +158,7 @@ variables, and when the function leaves its defining scope, these free
 variables become dangling references. 
 
 Here is an example in Lisp.
-\begin{lstlisting}
+\begin{lstlisting}[language=lisp]
 (defun make-adder (x)
   (lambda (y) (+ x y)))
 
@@ -160,7 +168,9 @@ Here is an example in Lisp.
 The call to \lstinline|(make-adder 5)| creates a stack frame that
 contains the binding \texttt{x = 5}. If the \lstinline|lambda| were just
 returned as an expression, it would contain a dangling reference to
-\texttt{x} because the stack frame is popped after the call.
+\texttt{x} because the stack is popped after the call.\footnote{When
+  we say ``the stack is popped'' we usually mean that the topmost
+  stack frame is discarded.}
 
 This example is an instance of the \emph{upward funarg problem}
 (return a function). The
@@ -183,7 +193,13 @@ Unfortunately, excessive heap allocation puts stress on the garbage
 collector whereas memory management for stack-allocated data comes
 (almost) for free. This idea was pushed to its limits by the seminal work on
 region-based memory management
-\cite{DBLP:conf/popl/TofteT94,DBLP:journals/iandc/TofteT97}.
+\cite{DBLP:conf/popl/TofteT94,DBLP:journals/iandc/TofteT97}. In
+practice, the situation is not so clear cut as allocation with
+Cheney's two-space collector or with generational collectors is also
+very cheap \cite{DBLP:journals/jfp/AppelS96}. However, segments of code that are provably free of
+garbage collection have deterministic timing and can satisfy hard
+timing constraints, as they are certainly not interrupted by garbage
+collection. 
 
 Recent work on second class values
 \cite{DBLP:conf/oopsla/OsvaldEWAR16} has
@@ -194,63 +210,88 @@ heap allocated. This work has subsequently been refined in the core
 calculus $\LamWhatif$
 \cite{DBLP:conf/ecoop/XhebrajB0R22}, where functions are
 either represented by heap closures or by stack closures. Invoking a
-heap closure pushes a new stack frame and pops it on return from the
+heap closure pushes a new frame on the stack and discards it on return from the
 closure. Invoking a stack closure merely extends the current stack
-frame and does \emph{not} pop it on return.
+frame and this extension is \emph{not} discarded on return.
 This model enables writing code that can locally allocate data on the
 stack as long as it does not escape from the most recently invoked
 heap closure.
 
+\begin{figure}[tp]
+  \begin{tikzpicture}[
+  box/.style={draw, minimum width=4cm, minimum height=1cm, align=center, inner sep=0pt},
+  ghost/.style={draw, densely dashed, minimum width=4cm, minimum height=1cm},
+  arr/.style={->, thick}
+]
+
+% Stack boxes directly on top of each other
+\node[box] (norm) {\texttt{norm}};
+\node[box, below=0pt of norm] (sarray) {\texttt{SArray[1]} \\ \texttt{SArray[0]}};
+\node[box, below=0pt of sarray] (add) {\texttt{add}};
+\node[ghost, below=0pt of add] (dots) {caller of \texttt{addnorm}}; % Dashed ghost box for continuation
+\node[right= 20pt of add] (refnode) {};
+\node[below= 2pt of refnode] (addnorm) {\quad\quad $\leftarrow$ \texttt{addnorm}};
+
+\end{tikzpicture}
+\caption{Run-time configuration}
+  \label{fig:runtime-configuration}
+\end{figure}
 This idea extends to stack allocation of data structures
 other than closures. Here is an example using arrays (in Python-style syntax):
-\begin{lstlisting}[language=python]
+\begin{lstlisting}
 def add(l: Array[int],
         r: Array[int]
-       ) -> SArray[int]:
+       ) ->2 SArray[int]:
     return SArray[l[0]+r[0], l[1]+r[1]]
-def norm (arr: SArray[int]) -> int:
+def norm (arr: SArray[int]) ->2 int:
     return arr[0]*arr[0] + arr[1]*arr[1]
 def addnorm (l: Array[int],
-             r: Array[int]) -> int:
+             r: Array[int]) ->1 int:
     return norm (add(l, r))
 \end{lstlisting}
 Let's assume that the type \texttt{Array} is
 allocated on the heap while \texttt{SArray} is stack-allocated.
 Further,  assume that \texttt{addnorm} is a heap closure while \texttt{add}
-and \texttt{norm} are stack closures.
+and \texttt{norm} are stack closures as indicated by the annotations
+on the arrows.
 In this configuration, \texttt{add} can safely allocate the
 \texttt{SArray} on the run-time stack.
 
 Here is what happens when invoking \texttt{addnorm} on two lists, step by step.
-\begin{itemize}
+\begin{enumerate}
 \item Create a new stack frame with arguments \lstinline|l| and
   \lstinline|r|.
 \item Extend the stack frame to call \texttt{add}.
 \item The function \texttt{add} allocates the
-  \texttt{SArray} on the current stack frame and returns
-  \emph{without popping the frame}.
+  \texttt{SArray} in the current stack frame and returns
+  \emph{without discarding the frame}.
 \item Extend the stack frame to call \texttt{norm}; the argument
   points to the \texttt{SArray} in the stack frame.
-\item Return the result of \texttt{norm} \emph{without popping the
-    stack}.
-\item Finally, return the result and pop the combined stack frame for
+\item Return the result of \texttt{norm} \emph{without discarding the
+    frame}.
+\item Finally, return the result and pop the stack thus discarding the frame(s) for
   \texttt{addnorm}, \texttt{add}, and \texttt{norm}.
-\end{itemize}
+\end{enumerate}
+The illustration in Figure~\ref{fig:runtime-configuration} shows the
+stack configuration right before the last step. The dashed ghost frame
+at the bottom belong to the caller of \texttt{addnorm}. The stack
+frame for \texttt{addnorm} contains the frames for \texttt{add} and
+\texttt{norm}, as well as the stack-allocated array.
 
 In the rest of the paper, we introduce a call-by-value lambda calculus $\LamOurs$
 with second class functions and second class references, which can
 express a computation just like the one for \texttt{addnorm}. Our
-calculus $\LamOurs$ is heavily inspired by $\LamWhatif$, but it
+calculus~$\LamOurs$ is heavily inspired by~$\LamWhatif$, but it
 implements some subtle changes and one major extension.
 
 \begin{itemize}
 \item Like $\LamWhatif$, $\LamOurs$ comes with a qualified type system
   that classifies values into first and second class.
-\item $\LamOurs$ implements a more realistic encoding of stack frames
+\item Our calculus $\LamOurs$ implements a slightly more realistic encoding of stack frames
   than $\LamWhatif$ because it pushes arguments of stack closures on
   the stack and accesses them by pointers into the stack. In contrast, the formal model of
   $\LamWhatif$ apparently copies relevant parts of the stack.
-\item $\LamOurs$ extends $\LamWhatif$ by mutable references that can
+\item The calculus $\LamOurs$ extends $\LamWhatif$ by mutable references that can
   be safely allocated on the stack or on the heap. This extension
   requires a subtle change in the type system compared to $\LamWhatif$
   (see Section~\ref{sec:types} for discussion). 
@@ -260,18 +301,18 @@ mechanized in Agda
 \cite{DBLP:conf/afp/Norell08,team25:_agda_homep}. The source code is
 separately available in a GitHub
 repository\footnote{\url{https://github.com/peterthiemann/what-if.git}}. 
-The main body of this paper contains comments excerpts of this
+The main body of this paper contains and comments on excerpts of this
 mechanized development. We expect readers to be reasonably fluent with
 Agda's syntax. 
 
-In the conclusions, we return to the questions raised in the abstract.
-\begin{itemize}
-\item What, exactly, is the meaning of a type qualifier?  
-\item Can we implement this scheme with a type-based, selective CPS
-  translation?
-\item Can we extend the formal framework of previous work
-  with first-class and second-class references?
-\end{itemize}
+% In the conclusions, we return to the questions raised in the abstract.
+% \begin{itemize}
+% \item What, exactly, is the meaning of a type qualifier?  
+% \item Can we implement this scheme with a type-based, selective CPS
+%   translation?
+% \item Can we extend the formal framework of previous work
+%   with first-class and second-class references?
+% \end{itemize}
 
 \section{Syntax}
 \label{sec:syntax}
@@ -279,18 +320,16 @@ In the conclusions, we return to the questions raised in the abstract.
 \subsection{Qualifiers}
 \label{sec:qualifiers}
 
-
-We start by defining the type qualifiers  and their ordering.
+The qualifiers {\AOne} and {\ATwo} are used throughout in types and
+expressions. The intuition is that {\AOne} classifies heap-related ``things'' and {\ATwo} classifies
+stack-related ``things''.  They are ranged over by $q$ and show up in the syntax of
+types and expressions and also as indices for the evaluation
+judgment. Qualifiers come with two, subtly different, semantics which
+we make more precise in each case and discuss in the conclusion.
 \Qual
 
-Type qualifiers form a complete lattice with lattice order $\le$. We
+Type qualifiers form a complete lattice with lattice order~$\le$. We
 prove that $\le$ is a partial order and that evidence for the order is unique.
-
-Type qualifiers are used throughout. The first intuition is that
-{\AOne} indicates heap-related things and {\ATwo} indicates
-stack-related things.  Qualifiers show up in the syntax of
-types and expressions and also as indices for the evaluation
-judgment and we make the definition more precise in each case.
 
 \subsection{Types}
 \label{sec:types}
@@ -298,18 +337,49 @@ judgment and we make the definition more precise in each case.
 
 
 Qualified types are defined by mutual recursion between $\AType$ and
-$\AQType$.
+$\AQType$ ranged over by $T$ and $S$, respectively:
+\begin{align*}
+  T &::= \ACUnit \mid \ACBase \mid \ACFun~S~S \mid \ACRef~S & S & ::= T^q
+\end{align*}
+Type formation (judgment $\vdash S$) is non-trivial as it ensures the
+type qualification is consistent, i.e.,
+that types are meaningful. We write $S\le q'$ as a shorthand for
+$S=T^q$ and $q\le q'$.
+\begin{mathpar}
+  \inferrule{}{\vdash \ACUnit^q} \and
+  \inferrule{}{\vdash \ACBase^q} \and
+  \inferrule{\vdash S_1 \\ \vdash S_2 \\ S_1 \le q \\ S_2
+    \le q}{\vdash (\ACFun~S_1~S_2)^q} \and
+  \inferrule{\vdash S \\ S \le q}{\vdash (\ACRef~S)^q}
+\end{mathpar}
+The following Agda definitions express the same constraints, but
+yield intrinsically consistent type qualifications because they formalize the type
+formation judgment $\vdash S$. 
 \QType
 The $\AQType$ only manages the qualifier and defines the type indexed
 by the qualifier. The $\AType$ comprises the unit type, base type,
-function and reference type. The latter two contain well-formedness
-constraints to ensure that types are meaningful.
+function and reference type.
+
+\subsection{Design Rationale}
+\label{sec:design-rationale}
+
+
+To understand the consistency constraints on qualifiers, we have to understand the
+underlying data model. We call a value of type $T^{\AOne}$ a
+\emph{heap value}. We can generally think of such a value as a 
+heap address, which points to a heap record that contains the actual
+data. Similarly, a \emph{stack value} is represented by a stack
+address and the value \emph{contains} whatever is stored at that
+address. (There are exceptions: values of type {\ACUnit} and {\ACBase} 
+are unboxed, i.e., directly represented.)
 
 Specifically, the constraint for $\ACRef$ enforces that a heap
-reference cannot contain a stack value. Otherwise, the stack value
-would be able to escape its defining scope.
+value cannot contain a stack value. Otherwise, a heap record would
+contain a stack address which would be able to escape its defining scope.
 The constraint for $\ACFun$ ensures that a heap-allocated function
-only has heap values as arguments and as results.
+only has heap values as arguments and as results. This (quite
+conservative) restriction means that stack addresses are invalidated
+once a heap-allocated function pushes a new stack frame.
 
 The earlier calculus $\LamWhatif$ does not impose either of these
 constraints: references are not supported by $\LamWhatif$ and we are
@@ -322,24 +392,25 @@ then we need to ensure that the callers' stack does not get
 corrupted. In $\LamWhatif$, there is no problem, but references may
 corrupt the stack.
 
-Concretely, consider a stack reference $r : \ACRef~\ATwo~(\ACRef~\ATwo~\AInt)$ which contains
-another stack reference to a number and suppose we can pass that value
-to a heap-allocated closure. That is, we create a new
-stack frame, which gets popped on return from the heap closure.
-On the local stack, we create a new reference as in $x =
+Concretely, consider a stack value $r : \ACRef~\ATwo~(\ACRef~\ATwo~\AInt)$ which contains
+another stack value which points  to a number and suppose we can pass that value
+to a heap-allocated closure. The call to this heap closure creates a new
+stack frame, which gets discarded on return from the closure.
+Suppose now, the body of the closure creates a new stack value on the
+local stack as in $x =
 \ACref~\ATwo~(42)$ of type $x : \ACRef~\ATwo~\AInt$.
 The typing allows us to update $r$ with this fresh reference as in $r
-:= x$. But now the callers' stack contains a reference to the current stack
+:= x$. But now the callers' stack contains an address into the current stack
 frame, which becomes invalid after returning from the heap closure (which
-pops the top-most stack frame).
+discard the top-most stack frame).
 
-We chose a simple approach (implemented by wellformedness constraints
-in types) to avoid this situation by disallowing 
-stack references (more generally: stack values) as arguments to heap
-closures. The recent literature contains several reports that consider
+We chose a simple approach to avoid this situation by disallowing 
+stack values as arguments to heap
+closures, which is enforced by the consistency constraints for
+function types. The recent literature contains several reports that consider
 less constrained (but vastly more complex) systems (e.g.,
 \cite{DBLP:journals/pacmpl/BaoWBJHR21,DBLP:journals/pacmpl/LorenzenWDEL24}),
-but we leave further exploration of design 
+and we leave further exploration of design 
 alternatives to future work.
 
 \subsection{Expressions}
@@ -351,67 +422,160 @@ bound to the variable. Identifiers \AFun{Ident} are just strings.
 \Variables
 
 The syntax of expressions is standard. Two constructors take
-qualifiers as arguments. The $\ACref$ constructor to direct allocation
-to heap or stack and the $\AClam$ constructor to mark argument and
-return values.
+qualifiers as arguments. The qualifier in the $\ACref$ constructor directs allocation
+to the heap or to the stack. The qualifiers in the $\AClam$
+constructor to mark the class of the argument and the return value,
+but do no govern allocation of the closure itself.
 \Expr
 
 
 \section{Run-Time Objects}
 \label{sec:run-time-objects}
 
-\Values
+\begin{figure}[tp]
+  \Values
+  \caption{Run-time objects}
+  \label{fig:run-time-objects}
+\end{figure}
 
-A value is either unit, constant, closure, or reference. The qualifier
-$q$ of a reference indicates whether it is a heap or a stack
-reference; the $\ell$ is the address on the heap or the current stack
-frame. A closure consists of the closure's qualifier $q$, the
-environment $\mathcal{E}$ with bindings for the free variables, the
-stack $\mathcal{S}$ when the closure was created, the closure variable
-$x$, the closure's body expression $e$, and the final qualifier to
-indicate the class of the return value.
+The operational semantics manipulates four kinds of run-time objects
+with mutually recursive definitions: values $\AVal$, environments
+$\AEnv$, stacks $\AStack$, and
+heaps $\AHeap$ (Fig.~\ref{fig:run-time-objects}). 
 
 An environment of type $\AEnv$ is either empty, or it is extended with
-a heap binding containing the value, or it is extended with a stack
-value, in which case the environment contains the address of the value
+a \emph{heap binding} $x:=v$ containing the value, or a \emph{stack binding} $x \Rightarrow a$, in which case the
+environment contains the address $a$ of the value
 in the (current) stack frame.
 
-A stack $\mathcal{S}$ consists of two lists of values. The list
+A value is either unit, constant, closure, or reference. Unit and
+constants are directly representend. A closure is (morally) a pointer
+to data stored according to the closure's qualifier $q$ ($\AOne$ heap,
+$\ATwo$ stack). Our model elides this pointer because closures are
+immutable (cf.\ \citet{DBLP:conf/ecoop/XhebrajB0R22}). We represent a
+closure as a structure containing the
+environment $\mathcal{E}$ with bindings for the free variables, the
+stack $\mathcal{S}$ when the closure was created, the closure variable
+$x$, the closure's body expression $e$, and the qualifier $q_r$ to
+indicate the class of the return value. 
+
+A reference value $\ACref~q~\ell$ is a true pointer.
+Its qualifier $q$ indicates whether it is a heap or a stack
+reference. The address $\ell$ either points to the heap or the current stack
+frame, depending on $q$. 
+
+Our model for the stack is bit unusual. From compiler construction,
+one would expect a plain list of values which contains all currently
+active stack frames with argument values and stack-allocated
+references intertwined. However, for technical reasons (see
+Section~\ref{sec:design-rationale}) we disallow stack pointers across
+calls to heap-allocated closures. Therefore, we reset the stack
+whenever we call a heap-allocated closure and accumulate new frames
+(without popping) for calls to stack-allocated closures. On returning
+from a heap-allocated closure, its call stack gets restored by the
+operational semantic (Section~\ref{sec:evaluation}, rule
+\ACEApp). Thus, our stack only contains the stack frame of the
+currently active heap-allocated closure including nested calls to
+stack-allocated closures.
+
+To simplify the subsequent technical development, we also distinguish
+between immutable and mutable parts of the stack. Hence, a stack
+$\mathcal{S}$ consists of two lists of values. The list 
 \texttt{vars} contains stack values referenced from the environment
+(i.e., function arguments)
 and the list \texttt{refs} contains ``memory cells'' to be used for
 stack references.\footnote{Strictly speaking, we could collapse the
   two lists into one and represent a stack frame as a linear array of
-  memory cells, but this structure is more easy to deal with in the
+  memory cells, but this structure is easier to deal with in the
   soundness proof.}
 
-The stack extension relation is defined by pairing the prefix relation
-on variables and $\le$ on the lengths of the references.
+This rationale explains the stack extension relation and the operation
+\AFun{new-frame?}. Extension is defined by pairing the prefix relation $\preceq$
+on variables (their values do not change and their number does not
+decrease) and $\le$ on the lengths of the references (their number
+does not decrease).
 \StackExtension
 
-Finally, a heap $\mathcal{H}$ is just a list of values, i.e., the
+The \AFun{new-frame?} operation resets the stack to empty ($\mathcal{S}\emptyset$) when the
+(closure) qualifier is $\AOne$ and keeps it, otherwise.
+\NewFrame
+
+A heap $\mathcal{H}$ is just a list of values, i.e., the
 memory cells for heap references. 
+
+
 
 \section{Typing}
 \label{sec:typing}
 
+As our operational semantics is a big-step semantics that relates
+expressions to values, we need a typing relation for expressions and
+also a value typing relation. Like
+\citet{DBLP:conf/ecoop/XhebrajB0R22} we also include a subtyping
+relation to make the system more flexible. Subtyping deals with the
+situation where a function asks for an argument that can be put on the
+stack, that is, the argument type has the form $T^{\ATwo}$. In this
+situation, it is safe to pass a heap value of type $T^{\AOne}$ because
+it is safe to put a heap pointer on the stack. Clearly, the converse
+(putting a stack pointer on the heap) is unsafe and thus ruled out by
+our system. Subtyping is a requirement in our system because all
+elimination rules in the type system ask for second class values in
+their elimination position (Section~\ref{sec:typing-rules}).
 
 \subsection{Subtyping}
 \label{sec:subtyping}
 \begin{figure}[tp]
-  \SubtypingRelation  
+\begin{mathpar}
+  \inferrule[\ACSUnit]{q_1 \le q_2}{\ACUnit^{q_1} <: \ACUnit^{q_2}} \and
+  \inferrule[\ACSBase]{q_1 \le q_2}{\ACBase^{q_1} <: \ACBase^{q_2}} \and
+  \inferrule[\ACSFun]{q_1 \le q_2 \\ S_3 <: S_1 \\ S_2 <: S_4 \\\\ S_1 \le q_1
+    \\ S_2 \le q_1 \\ S_3 \le q_2 \\ S_4 \le q_2 }{(\ACFun~S_1~S_2)^{q_1} <:
+    (\ACFun~S_3~S_4)^{q_2}} \and
+  \inferrule[\ACSRef]{q_1 \le q_2 \\ S_1 <: S_2 \\ S_2 <: S_1 \\ S_1, S_2 \le q_1}{(\ACRef~S_1)^{q_1} <: (\ACRef~S_2)^{q_2}}
+\end{mathpar}
   \caption{Subtyping}
   \label{fig:subtyping}
 \end{figure}
+\begin{figure}[tp]
+  \SubtypingRelation  
+  \caption{Subtyping (Agda)}
+  \label{fig:subtyping-agda}
+\end{figure}
 
-Figure~\ref{fig:subtyping} contains the subtyping rules. Rules are
+
+Figure~\ref{fig:subtyping} contains the subtyping rules with the Agda
+transcription in Figure~\ref{fig:subtyping-agda}. The traditional
+rules contain the required consistency constraints which are implicit
+in the Agda version. The {\ACSQual} rule is inlined in the traditional
+rules with the constraint $q_1\le q_2$.
+
+Subtyping
+only concerns the qualifiers, while the overall structure of the types
+remains the same. The rules are
 structured in two mutually recursive layers, just like types. The
 relation on $\AQType$ enables subsumption from heap values to stack
-values: any value that can be put on the heap can safely be put
-on the stack. The relation on $\AType$ just extends qualifier
-subtyping in the standard way by enforcing contravariant and covariant
+values: any heap pointer can be put on the stack, but not vice
+versa. The relation on $\AType$ extends qualifier 
+subtyping by enforcing contravariant and covariant
 behavior for arguments and results of a function as well as invariant
-behavior for values in a reference.
+behavior for values in a reference. Rule $\ACon{SQual}$ enforces that
+the top-level qualifier can only be subsumed by a larger qualifier. This relation is taken from
+\citet{DBLP:conf/ecoop/XhebrajB0R22}, but extended with reference types.
 
+\subsection{Typing contexts}
+\label{sec:typing-contexts}
+
+Formation of typing contexts $\Gamma$ is as usual with a slight
+twist. As variables are indexed by a qualifier, contexts contain an
+equality that makes sure that the qualifier of a variable is the same
+as the qualifier of the type it is bound to. The notation for an
+extended context is $\Gamma, x:S[eq]$ where $eq$ enforces equal qualifiers.
+\Contexts
+
+Context lookup is standard. We use a straightforward variable
+representation with explicit identifiers because we define the
+semantics without recurse to substitution.
+\ContextLookup
 
 \subsection{Typing rules}
 \label{sec:typing-rules}
@@ -422,15 +586,24 @@ behavior for values in a reference.
 \end{figure}
 Figure~\ref{fig:typing} contains the typing rules. Most of them are
 standard and unsurprising: type structure and qualifiers have to
-match. Unit values and constants are never put on the stack, so their
+match. Indeed, the rules $\ACTUnit$, $\ACTBase$, $\ACTAbs$, $\ACTApp$,
+and $\ACTSub$ correspond to the rules in
+\citet{DBLP:conf/ecoop/XhebrajB0R22}, with minor adaptations to deal
+with consistency of qualified types.
+Unit values and constants are never put on the stack, so their
 qualifier does not matter. Rule {\ACTAbs} defines the typing of an
 abstraction. The qualifier $q$ of the {\AClam} constructor determines
 the class of the closure. The body of the lambda is typed in a
 restricted typing context $\Gamma'$ which contains only the
 bindings with class $\le q$ from the original context. This
 restriction is enforced by the {\AqBounded} relation. The remaining
-parts of the rule enforce the well-formedness of the type
+parts of the rule enforce the consistency of the type
 qualification.
+
+The rules $\ACTSeq$, $\ACTRef$, $\ACTDeref$, and $\ACTSetref$ deal
+with sequencing and operations on references. They are new in this
+work, but straightforward adaptations of the standard rules for
+references to account for the qualifiers.
 
 It is interesting to observe that all elimination positions in the
 typing rules ask for second class values. This observation yields a
@@ -460,11 +633,11 @@ $\mathcal{S}$.
 
 Agreement consists of two components, $\models$-heap and
 $\models$-stack.
-$\models$-heap says that any variable binding of a heap variable to a
+Component $\models$-heap says that any variable binding of a heap variable to a
 heap type in $\Gamma$ gives access to the value of this variable in
 the run-time environment and the value has the type predicted by the
 context.
-$\models$-stack says that any binding of a stack variable to a type in
+Component $\models$-stack says that any binding of a stack variable to a type in
 $\Gamma$ gives access to the stack address of this variable in the
 run-time environment; moreover, looking up this address in the stack
 succeeds and yields a value of the type predicted by the context.
@@ -477,18 +650,25 @@ environment, but this run-time environment agrees with any stack that
 is an extension of the creation stack $\mathcal{S}$ of the
 closure. The qualifier $q$ determines the class of the closure; the
 \AFun{new-frame?} operator returns the empty stack for a heap closure
-and otherwise the identity.
+and otherwise the identity. The  equality using \AFun{new-frame?}
+ensures that the closure was created correctly (cf.\ Section~\ref{sec:run-time-objects}).
 The context has to be $q$ bounded.
 The body $e$ is typed with argument $S_1$ and result $S_2$.
 The final subtyping judgment enables us retype the value with any
-subtype.
+supertype.
 
 Value typing for a reference in rule {\ACTVRef} dispatches on class
 $q$ between the type environment $\Sigma_h$ for the heap and
 $\Sigma_s$ for the stack. It affirms that the pointer $\ell$ is valid
 (less than the length of the respective environment) and that looking
 up the environment at $\ell$ yields the expected type $T$.
-The final subtyping judgment has the same function as for closures.
+The final subtyping judgment also enable retyping with any supertype.
+
+The rule is bit obfuscated because it is parameterized over some $T :
+\AFun{Typeof}~q$, which is either a bare heap type (if $q=\AOne$) or a full qualified
+type (if $q = \ATwo$). The \verb|^^| operators make up for the
+difference as $\ACRef$ requires a full qualified type. Their
+definition is technical but straightforward.
 
 \subsection{Typing stacks and heaps }
 \label{sec:typing-stacks-heaps}
@@ -516,7 +696,13 @@ $\mathcal{S}'$.
 
 There is exactly one evaluation rule for each
 syntactic construct. This setup is different to $\LamWhatif$, where
-all evaluation rules come in pairs, indexed by their class.
+all evaluation rules come in pairs, indexed by their class. Most of our
+rules contain further case distinctions, which give rise to case
+distinctions in the soundness proof. However, the same is true for
+$\LamWhatif$ where both, the \textsc{EAppH} and \textsc{EAppS}, rules
+cover two subcases directed by the value of $ptr$ (which may be $\bot$
+or $k$) and the $\oplus$ operator, which dispatches on the class of
+its argument. 
 
 \RuleEUnit
 Evaluation of a unit preserves heap and stack.
@@ -528,7 +714,8 @@ function dereferences address on the stack, if needed.
 
 \RuleEAbs
 This rule distinguishes between heap allocated and stack allocated
-closures guided by the annotation $q_1$. The former are created with the empty stack while the latter
+closures guided by the annotation $q_1$. The former are created with
+the empty stack $\mathcal{S}\emptyset$ while the latter
 pick up the stack where they were created. The \AFun{q-bounded-Env}
 relation removes binding with class greater than $q$ from the run-time
 environment.
@@ -538,10 +725,19 @@ This rule deals with four cases at once. It distinguishes on $q$
 between heap and stack closures and it distinguishes on $q_1$ between
 heap and stack arguments. The former is handled by either creating a
 new stack frame or reusing the existing one (function
-\AFun{new-frame?} and function \AFun{restore-frame?} to pop). The
+\AFun{new-frame?} to start a frame and function \AFun{restore-frame?} to discard). The
 latter is handled by the operators $\oplus$ which either adds a value
 or its address to the run-time environment and $\oplus_s$ which
 conditionally pushes a value on the stack.
+
+Here we implement the rationale from
+Section~\ref{sec:design-rationale}. The full stack is implicit in the
+derivation of the evaluation judgment. At each call to a heap closure,
+\AFun{new-frame?} creates a new, empty frame to execute the body of
+the closure. After the call, it restores the previous frame.
+A call to a stack closure always extends the current frame and leaves
+it on the stack.
+
 
 \RuleERef
 To create a reference of class $q_1$, we evaluate its body at class
@@ -569,25 +765,29 @@ then the second subexpression at the class $q$ expected by the context.
   \caption{Wellformedness}
   \label{fig:wellformedness}
 \end{figure}
-In preparation for the soundness proof, we need an auxiliary notion of
-wellformedness. This notion essentially tells us that whenever
+In preparation for the soundness proof, we need a notion of
+\emph{wellformedness} which is a predicate on all run-time objects:
+values, environments, stacks, and heaps. Wellformedness tells us that whenever
 evaluation yields a stack closure, then the current stack is an
 extension of the creation stack of the closure. Thus, it is safe to
-continue using the closure.
+continue using the closure because it cannot contain dangling references.
 
 Figure~\ref{fig:wellformedness} contains the relevant definitions. In
-the definition of the {\AWellformed} type, we first check if the value
-is a closure to obtain its run-time environment $\mathcal{E}$ and its
+the definition of the {\AWellformed} predicate on values, we apply
+\AFun{clos-stack-env} to check if the value
+is a closure and obtain its run-time environment $\mathcal{E}$ and its
 creation-time stack $\mathcal{S}^c$. If the value is a heap value,
 then the creation-time stack is empty and $\mathcal{E}$ is a pure heap
-environment. Furthermore, the current stack $\mathcal{S}$ is an
+environment, which does not contain any stack bindings or stack
+values. Furthermore, the current stack $\mathcal{S}$ is an 
 extension of the creation-time stack and the run-time environment is
 wellformed in both stacks.
 
-A wellformed environment contains only wellformed values and all heap
+A wellformed environment {\AWellformedEnv} contains only wellformed values and all heap
 bindings are heap values.
 
-Wellformedness extends in the obvious way to heaps and stacks.
+Wellformedness extends pointwise to heaps and stacks (i.e., lists
+of values; not shown).
 
 \begin{figure}[tp]
   \SoundnessResult  
@@ -600,17 +800,70 @@ It is parameterized over the input heap type, input stack type, the
 return value $v$, its type $S$, the output heap $\mathcal{H}'$, and
 the input and output stack $\mathcal{S}$ and $\mathcal{S}'$ of an
 evaluation. It contains all relevant information to prove soundness by
-induction on the evaluation relation. 
+induction on the evaluation relation.
 
-Here is the statement of the soundness theorem as proved.
-\EvalSoundness
+Here are some highlights of the result.
+\begin{itemize}
+\item The output heap and output stack are well-typed extensions of
+  the input heap and input stack of evaluation. The extensions of the
+  typing assumptions for stack and heap are captured by
+  ${\uparrow}\Sigma{\preceq_s}$ and  ${\uparrow}\Sigma{\preceq_h}$ and
+  respective typing by ${\uparrow}{\vdash}\mathcal{S}$ and
+  ${\uparrow}{\vdash}\mathcal{H}$.
+\item The return value is (value) typed under the outgoing heap and
+  stack types as stated in ${\uparrow}{\vdash} v$.
+\item The output stack is an extension of the input stack (${\uparrow}\mathcal{S}{\preceq}$).
+\item The return value is wellformed, as are the output heap and stack
+  stated in ${\uparrow}\textsf{cls}$, ${\uparrow}\textsf{wf-}\mathcal{H}$ and ${\uparrow}\textsf{wf-}\mathcal{S}$.
+\end{itemize}
+
+\begin{figure}[tp]
+  \EvalSoundness  
+  \caption{Soundness theorem}
+  \label{fig:soundness-theorem}
+\end{figure}
+Figure~\ref{fig:soundness-theorem} contains the statement of the
+soundness theorem as proved. 
 It states that all stack and heap accesses during evaluation of a
 typed term are safe.
+More precisely, suppose we are given a typed heap, a typed stack, and
+an environment $\mathcal{E}$ that is admissible for some context
+$\Gamma$ with this heap and stack type. Furthermore, all input
+run-time objects (environment, heap, stack) are wellformed.
+If we have an expression $e$ which has  type $S$ in context $\Gamma$,
+and we evaluate $e$ under qualifier $q$ (which is an upper bound for
+the qualification of $S$) to value $v$, then we obtain the result for the return
+value $v$.
+
+As the proof of the theorem is by induction on the evaluation relation
+followed by inversion of the respective typing rule, we know that
+every step of the evaluation is safe. In particular, value typing for
+references enforces that there are no dangling stack references, which
+is the point of the whole exercise.
 
 \section{Conclusions}
 \label{sec:conclusions}
 
-To conclude, let's get back to the questions raised in the beginning.
+As we demonstrate in this paper, it is possible to extend the prior
+work \cite{DBLP:conf/ecoop/XhebrajB0R22} with first and second class
+references. In Section~\ref{sec:types} we explain the differences
+between $\LamWhatif$ and $\LamOurs$ in terms of wellformedness of
+qualified types.
+
+While we believe there is a less restrictive version of $\LamWhatif$
+that eliminates wellformedness, it requires a careful and much more
+complex design. We 
+already discussed the issue with stack references of stack references,
+but, of course, the same problem arises with (nested) stack closures
+that contain stack references. Thus, a revised calculus would have a
+significantly more complicated type system that keeps track of life
+times and aliasing, probably along the lines of reachability types
+\cite{DBLP:journals/pacmpl/BaoWBJHR21}. We leave this
+exploration to future work.
+
+
+To finish up, let's get back to the question raised in the abstract and
+add another one that points to future work.
 
 \subsection*{What, exactly, is the meaning of a type qualifier?}
 
@@ -640,7 +893,7 @@ value will never be put on the heap'' (directly or indirectly).
 Let's first clarify what we mean with this question. The classic
 approach of compiling with continuations
 \cite{DBLP:conf/acm/Steele77} goes (very roughly) like this:
-Apply a wholesale CPS translation to the program, distinguish (local)
+Apply a wholesale translation to continuation-passing style (CPS) to the program, distinguish (local)
 calls to continuations from serious function calls, implement the
 former by jumps (reusing the stack frame) and the latter by full blown 
 function calls that allocate fresh stack frames.
@@ -676,22 +929,6 @@ exploration to future work.
 
 \subsection*{Can we extend the formal framework of previous work
   with first-class and second-class references?}
-
-As we demonstrate in this paper, it is possible to extend the prior
-work \cite{DBLP:conf/ecoop/XhebrajB0R22} with first and second class
-references. In Section~\ref{sec:types} we explain the differences
-between $\LamWhatif$ and $\LamOurs$ in terms of wellformedness of
-qualified types.
-
-While we believe there is a less restrictive version of $\LamWhatif$
-that eliminates wellformedness, it requires a careful design. We
-already discussed the issue with stack references of stack references,
-but, of course, the same problem arises with (nested) stack closures
-that contain stack references. Thus, a revised calculus would have a
-significantly more complicated type system that keeps track of life
-times and aliasing, probably along the lines of reachability types
-\cite{DBLP:journals/pacmpl/BaoWBJHR21}. Again, we leave this
-exploration to future work.
 
 \begin{acks}
   Thanks to Julius Fischer for the many discussions on the subject. He

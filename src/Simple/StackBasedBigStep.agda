@@ -96,8 +96,8 @@ x≢⇒s≢ xneq refl = xneq refl
 -- expressions
 --! Expr
 data Expr  : Set where
-  cst      : ℕ → Expr
   unit     : Expr
+  cst      : ℕ → Expr
   var      : Var → Expr
   lam      : Qual → Var → Expr → Qual → Expr
   app      : Expr → Expr → Expr
@@ -109,28 +109,28 @@ data Expr  : Set where
 -- values and run-time environments
 --! Values {
 data Val   : Set
+record Stack : Set
 data Env   : Set where
   ∅        : Env
   ⟨_≔_,_⟩  : Ident → Val → Env → Env
   ⟨_⇒_,_⟩  : Ident → Address → Env → Env
 
-record Stack : Set where
-  inductive
-  constructor mkS
-  field
-    vars  : List Val
-    refs  : List Val
-open Stack public
-
 data Val where
   unit  : Val
   cst   : ℕ → Val
   clos  : (q : Qual) (𝓔 : Env) (𝓢 : Stack) (x : Var) (e : Expr)
-        → Qual → Val
-  ref   : (q : Qual) (ℓ : ℕ) → Val
+         (qᵣ : Qual) → Val
+  ref   : (q : Qual) (ℓ : Address) → Val
+
+record Stack where
+  inductive; constructor mkS
+  field
+    vars  : List Val
+    refs  : List Val
 
 Heap = List Val
 --! }
+open Stack public
 
 data _∋_⇒_ : Env → Var → Address → Set where
 
@@ -201,20 +201,22 @@ _≼ₛ_ : Stack → Stack → Set
 
 -- typing
 
+--! Contexts
 data Context : Set where
-
-  ∅ : Context
-  _,_⦂_[_] : (Γ : Context) → (x : Var) → (S : QType) → (q-of S ≡ q-var x) → Context
+  ∅         : Context
+  _,_⦂_[_]  :  (Γ : Context) (x : Var) (S : QType)
+               (S≡x : q-of S ≡ q-var x) → Context
 
 variable
   Γ Γ′ Γ″ Γ‴ : Context
   T T₁ T₂ : Type q
   S S′ S₀ S₁ S₂ S₃ S₄ : QType
 
+--! ContextLookup
 data _∋_⦂_ : Context → Var → QType → Set where
-
-  here   : ∀ {S≤x} → (Γ , x ⦂ S [ S≤x ]) ∋ x ⦂ S
-  there  : ∀ {S≤x} → Γ ∋ x ⦂ S → x ≢ x′ → (Γ , x′ ⦂ S′ [ S≤x ]) ∋ x ⦂ S
+  here   : ∀ {S≡x} → (Γ , x ⦂ S [ S≡x ]) ∋ x ⦂ S
+  there  : ∀ {S≡x} → Γ ∋ x ⦂ S → x ≢ x′
+         → (Γ , x′ ⦂ S′ [ S≡x ]) ∋ x ⦂ S
 
 
 -- lower bounds for qualifiers
@@ -232,15 +234,15 @@ module _ (q : Qual) where
 
     qb-∅ : q-Bound ∅
 
-    qb-add : ∀ {S≤x} → q-of S ≤ q → q-Bound Γ → q-Bound (Γ , x ⦂ S [ S≤x ])
+    qb-add : ∀ {S≡x} → q-of S ≤ q → q-Bound Γ → q-Bound (Γ , x ⦂ S [ S≡x ])
 
   data q-Bounded : Context → Context → Set where
 
     qb-∅ : q-Bounded ∅ ∅
 
-    qb-keep : ∀ {S≤x} → q-of S ≤ q → q-Bounded Γ Γ′ → q-Bounded (Γ , x ⦂ S [ S≤x ]) (Γ′ , x ⦂ S [ S≤x ])
+    qb-keep : ∀ {S≡x} → q-of S ≤ q → q-Bounded Γ Γ′ → q-Bounded (Γ , x ⦂ S [ S≡x ]) (Γ′ , x ⦂ S [ S≡x ])
 
-    qb-drop : ∀ {S≤x} → q-Bounded Γ Γ′ → (∀ {x′} {S′} → Γ′ ∋ x′ ⦂ S′ → x′ ≢ x)  → q-Bounded (Γ , x ⦂ S [ S≤x ]) (Γ′)
+    qb-drop : ∀ {S≡x} → q-Bounded Γ Γ′ → (∀ {x′} {S′} → Γ′ ∋ x′ ⦂ S′ → x′ ≢ x)  → q-Bounded (Γ , x ⦂ S [ S≡x ]) (Γ′)
 
 
   data q-Bounded-Env : Env → Env → Set where
@@ -265,7 +267,7 @@ is-bounded (qb-drop qbdd _) = is-bounded qbdd
 
 𝟙-bound⇒∀𝟚∉ : q-Bound 𝟙 Γ → (∀ s S → ¬ (Γ ∋ X s 𝟚 ⦂ S))
 𝟙-bound⇒∀𝟚∉ qb-∅ s S ()
-𝟙-bound⇒∀𝟚∉ (qb-add {S≤x = ()} ≤-refl qbd) s S here
+𝟙-bound⇒∀𝟚∉ (qb-add {S≡x = ()} ≤-refl qbd) s S here
 𝟙-bound⇒∀𝟚∉ (qb-add x qbd) s S (there x∈ x₁) = 𝟙-bound⇒∀𝟚∉ qbd s S x∈
 
 --! SubtypingRelation {
@@ -284,15 +286,15 @@ data _<⦂′_ {q₁ q₂ qsub} where
 
   SBase  : Base <⦂′ Base
 
-  SFun   : ∀ {wf₁ wf₂ wf₃ wf₄}
+  SFun   : ∀ {cq₁ cq₂ cq₃ cq₄}
          → S₃ <⦂ S₁
          → S₂ <⦂ S₄
-         → Fun S₁ S₂ wf₁ wf₂ <⦂′ Fun S₃ S₄ wf₃ wf₄
+         → Fun S₁ S₂ cq₁ cq₂ <⦂′ Fun S₃ S₄ cq₃ cq₄
 
-  SRef   : ∀ {wf₁ wf₂}
+  SRef   : ∀ {cq₁ cq₂}
          → S₁ <⦂ S₂
          → S₂ <⦂ S₁
-         → Ref S₁ wf₁ <⦂′ Ref S₂ wf₂
+         → Ref S₁ cq₁ <⦂′ Ref S₂ cq₂
 --! }
 
 q-of-mono : S₁ <⦂ S₂ → q-of S₁ ≤ q-of S₂
@@ -306,7 +308,7 @@ q-of-mono (SQual q1≤q2 _) = q1≤q2
 
 <⦂′-refl {T = Unit} = SUnit
 <⦂′-refl {T = Base} = SBase
-<⦂′-refl {T = Fun S₁ S₂ wf₁ wf₂} = SFun <⦂-refl <⦂-refl
+<⦂′-refl {T = Fun S₁ S₂ cq₁ cq₂} = SFun <⦂-refl <⦂-refl
 <⦂′-refl {T = Ref S x} = SRef <⦂-refl <⦂-refl
 
 <⦂-trans : S₁ <⦂ S₂ → S₂ <⦂ S₃ → S₁ <⦂ S₃
@@ -346,19 +348,21 @@ data _⊢_⦂_ : Context → Expr → QType → Set where
 
   TUnit    : Γ ⊢ unit ⦂ (Unit ^ q)
 
+  TBase    : Γ ⊢ cst n ⦂ (Base ^ q)
+
   TVar     : Γ ∋ x ⦂ S
            → Γ ⊢ var x ⦂ S
 
-  TAbs     : ∀ {S≤x}
-           → (Γ′ , x ⦂ S₁ [ S≤x ]) ⊢ e ⦂ S₂
+  TAbs     : ∀ {S≡x}
+           → (Γ′ , x ⦂ S₁ [ S≡x ]) ⊢ e ⦂ S₂
            → q-Bounded q Γ Γ′
            → let q₁ = q-of S₁; q₂ = q-of S₂
-           in {wf₁ : q₁ ≤ q}
-           → {wf₂ : q₂ ≤ q}
-           → Γ ⊢ lam q x e q₂ ⦂ ((Fun S₁ S₂ wf₁ wf₂) ^ q)
+           in {cq₁ : q₁ ≤ q}
+           → {cq₂ : q₂ ≤ q}
+           → Γ ⊢ lam q x e q₂ ⦂ (Fun S₁ S₂ cq₁ cq₂ ^ q)
 
-  TApp     : ∀ {wf₁ wf₂}
-           → Γ ⊢ e₁ ⦂ (Fun S₁ S₂ wf₁ wf₂ ^ 𝟚)
+  TApp     : ∀ {cq₁ cq₂}
+           → Γ ⊢ e₁ ⦂ (Fun S₁ S₂ cq₁ cq₂ ^ 𝟚)
            → Γ ⊢ e₂ ⦂ S₁
            → Γ ⊢ app e₁ e₂ ⦂ S₂
 
@@ -370,16 +374,16 @@ data _⊢_⦂_ : Context → Expr → QType → Set where
            → Γ ⊢ e₂ ⦂ S
            → Γ ⊢ seq e₁ e₂ ⦂ S
 
-  TRef     : ∀ {wf : q-of S ≤ q}
+  TRef     : ∀ {cq : q-of S ≤ q}
            → Γ ⊢ e ⦂ S
-           → Γ ⊢ ref q e ⦂ (Ref S wf ^ q)
+           → Γ ⊢ ref q e ⦂ (Ref S cq ^ q)
 
-  TDeref   : ∀ {wf : q-of S ≤ q}
-           → Γ ⊢ e ⦂ (Ref S wf ^ q)
+  TDeref   : ∀ {cq : q-of S ≤ q}
+           → Γ ⊢ e ⦂ (Ref S cq ^ q)
            → Γ ⊢ deref e ⦂ S
 
-  TSetref  : ∀ {wf : q-of S ≤ q}
-           → Γ ⊢ e₁ ⦂ (Ref S wf ^ q)
+  TSetref  : ∀ {cq : q-of S ≤ q}
+           → Γ ⊢ e₁ ⦂ (Ref S cq ^ q)
            → Γ ⊢ e₂ ⦂ S
            → Γ ⊢ setref e₁ e₂ ⦂ (Unit ^ 𝟙)
 --! }
@@ -521,9 +525,9 @@ _≼ₕₛ_ : HSType → HSType → Set
 ≼ₕₛ-adjust ≼Σ₁ 𝟙 = ≼Σ₁ 𝟙
 ≼ₕₛ-adjust {Σ₁} ≼Σ₁ 𝟚 = [] , ++-identityʳ (Σ₁ 𝟚)
 
-≼ₕₛ-adjust-[] : ∀ {Σ₁ Σ₂ : HSType} → adjust-stack Σ₁ [] ≼ₕₛ Σ₂ → Σ₁ ≼ₕₛ adjust-stack Σ₂ (Σ₁ 𝟚)
-≼ₕₛ-adjust-[] ≼Σ₁ 𝟙 = ≼Σ₁ 𝟙
-≼ₕₛ-adjust-[] {Σ₁} ≼Σ₁ 𝟚 = [] , ++-identityʳ (Σ₁ 𝟚)
+-- ≼ₕₛ-adjust-[] : ∀ {Σ₁ Σ₂ : HSType} → adjust-stack Σ₁ [] ≼ₕₛ Σ₂ → Σ₁ ≼ₕₛ adjust-stack Σ₂ (Σ₁ 𝟚)
+-- ≼ₕₛ-adjust-[] ≼Σ₁ 𝟙 = ≼Σ₁ 𝟙
+-- ≼ₕₛ-adjust-[] {Σ₁} ≼Σ₁ 𝟚 = [] , ++-identityʳ (Σ₁ 𝟚)
 
 ≼ₕₛ⇒length : Σₕₛ ≼ₕₛ Σₕₛ′ → ∀ q → length (Σₕₛ q) ≤ℕ length (Σₕₛ′ q)
 ≼ₕₛ⇒length {Σₕₛ} Σ≼ q
@@ -547,11 +551,12 @@ _≼ₕₛ_ : HSType → HSType → Set
 
 ---- value typing & environment agreement
 
-
+--! NewFrame
 new-frame? : Qual → Stack → Stack
 new-frame? 𝟙 𝓢 = 𝓢∅
 new-frame? 𝟚 𝓢 = 𝓢
 
+--! Choose
 choose : (q : Qual) → HType → SType → List (Typeof q)
 choose 𝟙 Σₕ Σₛ = Σₕ
 choose 𝟚 Σₕ Σₛ = Σₛ
@@ -590,9 +595,9 @@ data ⟨_,_⟩⊢[_⦂_] Σₕ Σₛ where
           → (⊢e : (Γ , x ⦂ S₁ [ S₁≤x ]) ⊢ e ⦂ S₂)
           → let q₂ = q-of S₂ in
           let q₁ = q-of S₁
-          in (wf₁ : q₁ ≤ q)
-          → (wf₂ : q₂ ≤ q)
-          → (<⦂S : (Fun S₁ S₂ wf₁ wf₂ ^ q) <⦂ S)
+          in (cq₁ : q₁ ≤ q)
+          → (cq₂ : q₂ ≤ q)
+          → (<⦂S : (Fun S₁ S₂ cq₁ cq₂ ^ q) <⦂ S)
           → ⟨ Σₕ , Σₛ ⟩⊢[ clos q 𝓔 𝓢 x e q₂ ⦂ S ]
 
   TVRef   : ∀ {T : Typeof q}
@@ -620,7 +625,7 @@ restrict′ {q = 𝟙} ⊨𝓔 qbdd =
 𝟙-value : ⟨ Σₕ , Σₛ ⟩⊢[ v ⦂ S ] → S <⦂ mkQ 𝟙 T → q-val v ≡ 𝟙
 𝟙-value TVUnit S<⦂ = refl
 𝟙-value TVCst S<⦂ = refl
-𝟙-value (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ (SQual ≤-refl x₁)) (SQual ≤-refl x) = refl
+𝟙-value (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ (SQual ≤-refl x₁)) (SQual ≤-refl x) = refl
 𝟙-value (TVRef ℓ< lkup≡ (SQual ≤-refl x₁)) (SQual ≤-refl x) = refl
 
 𝟙-value-no-stack : ⟨ Σₕ , Σₛ ⟩⊢[ v ⦂ S ] → q-of S ≡ 𝟙 → ⟨ Σₕ , [] ⟩⊢[ v ⦂ S ]
@@ -628,7 +633,7 @@ restrict′ {q = 𝟙} ⊨𝓔 qbdd =
 
 𝟙-value-no-stack TVUnit qs≡𝟙 = TVUnit
 𝟙-value-no-stack TVCst qs≡𝟙 = TVCst
-𝟙-value-no-stack (TVClos {q = 𝟙} ∀⊨𝓔 refl qbd ⊢e wf₁ wf₂ (SQual ≤-refl x)) refl = TVClos (λ 𝓢′ 𝓢≼ → 𝟙-env-no-stack (∀⊨𝓔 𝓢′ 𝓢≼) qbd) refl qbd ⊢e wf₁ wf₂ (SQual ≤-refl x)
+𝟙-value-no-stack (TVClos {q = 𝟙} ∀⊨𝓔 refl qbd ⊢e cq₁ cq₂ (SQual ≤-refl x)) refl = TVClos (λ 𝓢′ 𝓢≼ → 𝟙-env-no-stack (∀⊨𝓔 𝓢′ 𝓢≼) qbd) refl qbd ⊢e cq₁ cq₂ (SQual ≤-refl x)
 𝟙-value-no-stack (TVRef {𝟙} ℓ< lkup≡ <⦂S) refl = TVRef ℓ< lkup≡ <⦂S
 𝟙-value-no-stack (TVRef {𝟚} ℓ< lkup≡ (SQual () x)) refl
 
@@ -650,8 +655,8 @@ restrict′ {q = 𝟙} ⊨𝓔 qbdd =
 
 ⊢ᵥ-adjust-𝟙 TVUnit = TVUnit
 ⊢ᵥ-adjust-𝟙 TVCst = TVCst
-⊢ᵥ-adjust-𝟙 (TVClos {q = 𝟙} ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-adjust-𝟙 qbd (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S
-⊢ᵥ-adjust-𝟙 (TVClos {q = 𝟚} ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ (SQual () x))
+⊢ᵥ-adjust-𝟙 (TVClos {q = 𝟙} ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-adjust-𝟙 qbd (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S
+⊢ᵥ-adjust-𝟙 (TVClos {q = 𝟚} ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ (SQual () x))
 ⊢ᵥ-adjust-𝟙 (TVRef {𝟙} ℓ< lkup≡ <⦂S) = TVRef ℓ< lkup≡ <⦂S
 ⊢ᵥ-adjust-𝟙 (TVRef {𝟚} ℓ< lkup≡ (SQual () x))
 
@@ -668,8 +673,8 @@ restrict′ {q = 𝟙} ⊨𝓔 qbdd =
                          (λ x → let a , sacc , v , jv≡ , ⊢v = ⊨-stack ⊨𝓔 x in a , sacc , v , ↓ᵥ-mono{𝓢 = 𝓢}{𝓢′ = 𝓢′} ≼𝓢 jv≡ , ⊢ᵥ-extend {𝓢 = 𝓢}{𝓢′ = 𝓢′} ≼Σₕ ≼Σₛ ≼𝓢 ⊢v)
 ⊢ᵥ-extend ≼Σₕ ≼Σₛ ≼𝓢 TVUnit = TVUnit
 ⊢ᵥ-extend ≼Σₕ ≼Σₛ ≼𝓢 TVCst = TVCst
-⊢ᵥ-extend ≼Σₕ ≼Σₛ ≼𝓢 (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S)
-  = TVClos (λ 𝓢′₁ 𝓢≼ → ⊨-extend {𝓢 = 𝓢′₁} ≼Σₕ ≼Σₛ (≼ₛ-refl {𝓢′₁}) (∀⊨𝓔 _ 𝓢≼)) 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S
+⊢ᵥ-extend ≼Σₕ ≼Σₛ ≼𝓢 (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S)
+  = TVClos (λ 𝓢′₁ 𝓢≼ → ⊨-extend {𝓢 = 𝓢′₁} ≼Σₕ ≼Σₛ (≼ₛ-refl {𝓢′₁}) (∀⊨𝓔 _ 𝓢≼)) 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S
 ⊢ᵥ-extend {Σₕ = Σₕ} {Σₛ = Σₛ} ≼Σₕ@(qts , eq) ≼Σₛ ≼𝓢 (TVRef {q = 𝟙} ℓ< lkup≡ <⦂S) = TVRef (≤ℕ-trans ℓ< (≼⇒length ≼Σₕ)) (trans (lookup-from-i′ Σₕ ℓ< eq) lkup≡) <⦂S
 ⊢ᵥ-extend {Σₕ = Σₕ} {Σₛ = Σₛ} ≼Σₕ ≼Σₛ@(qts , eq) ≼𝓢 (TVRef {q = 𝟚} ℓ< lkup≡ <⦂S) = TVRef (≤ℕ-trans ℓ< (≼⇒length ≼Σₛ)) (trans (lookup-from-i′ Σₛ ℓ< eq) lkup≡) <⦂S
 
@@ -713,7 +718,7 @@ _,_⊢ₛ_ : HType → SType → Stack → Set
   → ⟨ Σₕ′ , Σₛ ⟩⊢[ v ⦂ S ]
 ⊢ᵥ-adjust-≼ₕ ≼Σ TVUnit = TVUnit
 ⊢ᵥ-adjust-≼ₕ ≼Σ TVCst = TVCst
-⊢ᵥ-adjust-≼ₕ ≼Σ (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-adjust-≼ₕ ≼Σ (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S
+⊢ᵥ-adjust-≼ₕ ≼Σ (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-adjust-≼ₕ ≼Σ (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S
 ⊢ᵥ-adjust-≼ₕ {Σₕ = Σₕ} ≼Σ (TVRef {𝟙} ℓ< lkup≡ <⦂S)
   with ≼Σ in eq
 ... | qts , eq1  
@@ -765,7 +770,7 @@ _,_⊢ₛ_ : HType → SType → Stack → Set
 [⦂]-≼ₕₛ :  Σₕ ≼ Σₕ′ → Σₛ ≼ Σₛ′ → ⟨ Σₕ , Σₛ ⟩⊢[ v ⦂ S ] → ⟨ Σₕ′ , Σₛ′ ⟩⊢[ v ⦂ S ]
 [⦂]-≼ₕₛ Σ≼ₕ Σ≼ₛ TVUnit = TVUnit
 [⦂]-≼ₕₛ Σ≼ₕ Σ≼ₛ TVCst = TVCst
-[⦂]-≼ₕₛ Σ≼ₕ Σ≼ₛ (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e σ?≡ wf₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-extend-Σ Σ≼ₕ Σ≼ₛ (∀⊨𝓔  𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e σ?≡ wf₂ <⦂S
+[⦂]-≼ₕₛ Σ≼ₕ Σ≼ₛ (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e σ?≡ cq₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨-extend-Σ Σ≼ₕ Σ≼ₛ (∀⊨𝓔  𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e σ?≡ cq₂ <⦂S
 [⦂]-≼ₕₛ {Σₕ = Σₕ} {Σₛ = Σₛ} Σ≼ₕ@(qts , eq) Σ≼ₛ (TVRef {q = 𝟙} ℓ< lkup≡ <⦂S) = TVRef (≤ℕ-trans ℓ< (≼⇒length Σ≼ₕ)) (trans (lookup-from-i′ Σₕ ℓ< eq) lkup≡) <⦂S
 [⦂]-≼ₕₛ {Σₕ = Σₕ} {Σₛ = Σₛ} Σ≼ₕ Σ≼ₛ@(qts , eq) (TVRef {q = 𝟚} ℓ< lkup≡ <⦂S) = TVRef (≤ℕ-trans ℓ< (≼⇒length Σ≼ₛ)) (trans (lookup-from-i′ Σₛ ℓ< eq) lkup≡) <⦂S
 
@@ -797,8 +802,8 @@ _,_⊢ₛ_ : HType → SType → Stack → Set
 
 ⊢v-stack-𝟙 TVUnit = TVUnit
 ⊢v-stack-𝟙 TVCst = TVCst
-⊢v-stack-𝟙 (TVClos {q = 𝟙} ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨𝓔-stack-𝟙 qbd (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S
-⊢v-stack-𝟙 (TVClos {q = 𝟚} ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ (SQual () x))
+⊢v-stack-𝟙 (TVClos {q = 𝟙} ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S) = TVClos (λ 𝓢′ 𝓢≼ → ⊨𝓔-stack-𝟙 qbd (∀⊨𝓔 𝓢′ 𝓢≼)) 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S
+⊢v-stack-𝟙 (TVClos {q = 𝟚} ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ (SQual () x))
 ⊢v-stack-𝟙 (TVRef {𝟙} ℓ< lkup≡ <⦂S) = TVRef ℓ< lkup≡ <⦂S
 ⊢v-stack-𝟙 (TVRef {𝟚} ℓ< lkup≡ (SQual () x))
 
@@ -831,7 +836,7 @@ genaccess-soundness-𝟚 ⊨𝓔 x∈ (on-stack sa) v eq
 <⦂-val-lift : ⟨ Σₕ , Σₛ ⟩⊢[ v ⦂ S₁ ] → S₁ <⦂ S₂ → ⟨ Σₕ , Σₛ ⟩⊢[ v ⦂ S₂ ]
 <⦂-val-lift TVUnit (SQual _ SUnit) = TVUnit
 <⦂-val-lift TVCst  (SQual _ SBase) = TVCst
-<⦂-val-lift (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ <⦂S₁) S₁<⦂S₂ = TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e wf₁ wf₂ (<⦂-trans <⦂S₁ S₁<⦂S₂)
+<⦂-val-lift (TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ <⦂S₁) S₁<⦂S₂ = TVClos ∀⊨𝓔 𝓢≡ qbd ⊢e cq₁ cq₂ (<⦂-trans <⦂S₁ S₁<⦂S₂)
 <⦂-val-lift (TVRef ℓ< lkup≡ <⦂S₁) S₁<⦂S₂ = TVRef ℓ< lkup≡ (<⦂-trans <⦂S₁ S₁<⦂S₂)
 
 
@@ -1018,7 +1023,7 @@ data _,_,_⊢_⇓[_]_⊣_,_
   EAbs : ∀ {𝓢ᶜ}
        → q₁ ≤ q
        → q₂ ≤ q
-       → case q₁ of (λ{ 𝟙 → 𝓢ᶜ ≡ 𝓢∅ ; 𝟚 → 𝓢ᶜ ≡ 𝓢 })
+       → 𝓢ᶜ ≡ new-frame? q₁ 𝓢
        → q-Bounded-Env q₁ 𝓔 𝓔′
          -------------------------------------------------------------
        → 𝓔 , 𝓗 , 𝓢 ⊢ lam q₁ x e q₂ ⇓[ q ]
@@ -1063,7 +1068,7 @@ data _,_,_⊢_⇓[_]_⊣_,_
 
 --! RuleESeq
   ESeq :
-        𝓔 , 𝓗 , 𝓢 ⊢ e₁ ⇓[ 𝟚 ] v₁ ⊣ 𝓗′ , 𝓢′
-      → 𝓔 , 𝓗′ , 𝓢′ ⊢ e₂ ⇓[ q ] v₂ ⊣ 𝓗″ , 𝓢″
-        ---------------------------------------------------------
-      → 𝓔 , 𝓗 , 𝓢 ⊢ seq e₁ e₂ ⇓[ q ] v₂ ⊣ 𝓗″ , 𝓢″
+         𝓔 , 𝓗 , 𝓢 ⊢ e₁ ⇓[ 𝟚 ] v₁ ⊣ 𝓗′ , 𝓢′
+      →  𝓔 , 𝓗′ , 𝓢′ ⊢ e₂ ⇓[ q ] v₂ ⊣ 𝓗″ , 𝓢″
+         ---------------------------------------------------------
+      →  𝓔 , 𝓗 , 𝓢 ⊢ seq e₁ e₂ ⇓[ q ] v₂ ⊣ 𝓗″ , 𝓢″
