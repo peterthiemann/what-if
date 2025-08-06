@@ -139,8 +139,8 @@ work:  What, exactly, is the meaning of a type qualifier?
 %% information and builds the first part of the formatted document.
 \maketitle
 \lstset{language=python,morekeywords={Array,SArray},literate=
-  {->1}{$\rightarrow^1$}3
-  {->2}{$\rightarrow^2$}3}
+  {->1}{{\ensuremath{\rightarrow^1}}}3
+  {->2}{{\ensuremath{\rightarrow^2}}}3}
 
 \section{Introduction}
 
@@ -249,9 +249,9 @@ def addnorm (l: Array[int],
              r: Array[int]) ->1 int:
     return norm (add(l, r))
 \end{lstlisting}
-Let's assume that the type \texttt{Array} is
+Let's assume that type \texttt{Array} is
 allocated on the heap while \texttt{SArray} is stack-allocated.
-Further,  assume that \texttt{addnorm} is a heap closure while \texttt{add}
+Assume further that \texttt{addnorm} is a heap closure while \texttt{add}
 and \texttt{norm} are stack closures as indicated by the annotations
 on the arrows.
 In this configuration, \texttt{add} can safely allocate the
@@ -675,7 +675,7 @@ definition is technical but straightforward.
 
 Heap typing and stack typing are both straightforward. The typing
 environment is a list of (heap) types which is pointwise related to a
-list of values by the run-time value relation. Heap values do not
+list of values of the same length by the run-time value relation. Heap values do not
 depend on stack values, so the stack type is not needed for typing a heap.
 
 \HeapTyping
@@ -745,18 +745,20 @@ $q_1$. Then we either allocate it on the heap or on the stack and
 leave the other component unchanged.
 
 \RuleEDeref
-We evaluate the argument of deref at class $\ATwo$, then we either
+We can evaluate the argument of deref at class $\ATwo$ because the
+result is directly eliminated and never stored anywhere. Next, we either
 read the value from the heap or from the stack depending on the class
 of the reference.
 
 \RuleESetref
-We evaluate the first argument of setref at class $\ATwo$ and the
-second at the class $q_1$ expected by the reference. The we either
-write to the heap or to the stack.
+We can evaluate the first argument of setref at class $\ATwo$ for the
+same reason as before. The second is evaluated at class $q_1$ as
+expected by the reference. The we either write to the heap or to the stack.
 
 \RuleESeq
-We evaluate the first subexpression of the sequence at class $\ATwo$ and
-then the second subexpression at the class $q$ expected by the context.
+We evaluate the first subexpression of the sequence at class $\ATwo$
+as its value is ignored.
+Then we evaluate the second subexpression at the class $q$ expected by the context.
 
 \section{Soundness}
 \label{sec:soundness}
@@ -790,7 +792,7 @@ Wellformedness extends pointwise to heaps and stacks (i.e., lists
 of values; not shown).
 
 \begin{figure}[tp]
-  \SoundnessResult  
+  \SoundnessResult
   \caption{Results}
   \label{fig:soundness-result}
 \end{figure}
@@ -933,7 +935,11 @@ exploration to future work.
 \begin{acks}
   Thanks to Julius Fischer for the many discussions on the subject. He
   implemented a prototype interpreter for $\LamOurs$ as part of his
-  bachelor thesis.\footnote{\url{https://github.com/Proglang-Uni-Freiburg/LambdaCPS.git}}
+  bachelor
+  thesis.\footnote{\url{https://github.com/Proglang-Uni-Freiburg/LambdaCPS.git}}
+  Thanks are also due to the reviewers who provided thoughtful
+  feedback that improved the paper significanty.
+  Thanks also to ChatGPT for drawing Figure~\ref{fig:runtime-configuration}.
 \end{acks}
 
 %%

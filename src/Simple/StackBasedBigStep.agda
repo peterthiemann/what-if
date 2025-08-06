@@ -202,18 +202,18 @@ _≼ₛ_ : Stack → Stack → Set
 -- typing
 
 --! Contexts
-data Context : Set where
-  ∅         : Context
-  _,_⦂_[_]  :  (Γ : Context) (x : Var) (S : QType)
-               (S≡x : q-of S ≡ q-var x) → Context
+data Ctx : Set where
+  ∅         : Ctx
+  _,_⦂_[_]  :  (Γ : Ctx) (x : Var) (S : QType)
+               (S≡x : q-of S ≡ q-var x) → Ctx
 
 variable
-  Γ Γ′ Γ″ Γ‴ : Context
+  Γ Γ′ Γ″ Γ‴ : Ctx
   T T₁ T₂ : Type q
   S S′ S₀ S₁ S₂ S₃ S₄ : QType
 
 --! ContextLookup
-data _∋_⦂_ : Context → Var → QType → Set where
+data _∋_⦂_ : Ctx → Var → QType → Set where
   here   : ∀ {S≡x} → (Γ , x ⦂ S [ S≡x ]) ∋ x ⦂ S
   there  : ∀ {S≡x} → Γ ∋ x ⦂ S → x ≢ x′
          → (Γ , x′ ⦂ S′ [ S≡x ]) ∋ x ⦂ S
@@ -230,13 +230,13 @@ q-val (ref q _) = q
 
 module _ (q : Qual) where
 
-  data q-Bound : Context → Set where
+  data q-Bound : Ctx → Set where
 
     qb-∅ : q-Bound ∅
 
     qb-add : ∀ {S≡x} → q-of S ≤ q → q-Bound Γ → q-Bound (Γ , x ⦂ S [ S≡x ])
 
-  data q-Bounded : Context → Context → Set where
+  data q-Bounded : Ctx → Ctx → Set where
 
     qb-∅ : q-Bounded ∅ ∅
 
@@ -344,7 +344,7 @@ q-of-mono (SQual q1≤q2 _) = q1≤q2
 -- typing
 
 --! TypingRules {
-data _⊢_⦂_ : Context → Expr → QType → Set where
+data _⊢_⦂_ : Ctx → Expr → QType → Set where
 
   TUnit    : Γ ⊢ unit ⦂ (Unit ^ q)
 
@@ -565,7 +565,7 @@ choose 𝟚 Σₕ Σₛ = Σₛ
 data ⟨_,_⟩⊢[_⦂_] (Σₕ : HType) (Σₛ : SType)
                  : Val → QType → Set
 
-record ⟨_,_,_⟩⊨_/_ (Σₕ : HType) (Σₛ : SType) (Γ : Context)
+record ⟨_,_,_⟩⊨_/_ (Σₕ : HType) (Σₛ : SType) (Γ : Ctx)
                    (𝓔 : Env) (𝓢 : Stack) : Set where
   inductive
   constructor mk-⊨
@@ -683,9 +683,13 @@ restrict′ {q = 𝟙} ⊨𝓔 qbdd =
 -- heap typing
 
 
---! HeapTyping
+--! HeapTyping {
+_⊢[_⦂_] : HType → Val → Type 𝟙 → Set
+Σₕ ⊢[ v ⦂ T ] = ⟨ Σₕ , [] ⟩⊢[ v ⦂ (T ^ 𝟙)]
+
 _⊢ₕ_ : HType → Heap → Set
-Σₕ ⊢ₕ 𝓗 = Pointwise (λ v T → ⟨ Σₕ , [] ⟩⊢[ v ⦂ (T ^ 𝟙)]) 𝓗 Σₕ
+Σₕ ⊢ₕ 𝓗 = Pointwise (Σₕ ⊢[_⦂_]) 𝓗 Σₕ
+--! }
 
 ⊢ₕ-length-aux : ∀ {q} {Σᵣ} {vs : List Val} → Pointwise (λ x y → ⟨ Σₕ , Σₛ ⟩⊢[ x ⦂ (q ^^ y) ]) vs Σᵣ → length Σᵣ ≡ length vs
 ⊢ₕ-length-aux [] = refl
@@ -945,16 +949,6 @@ typed-swrite {Σₛ = Σₛ} ⊢𝓢 ℓ< lkup≡ ⊢v (swrite0 xwrite) = typed-
 ⊢𝓢-extend-𝟙 : (T : Type 𝟙) → (⊢𝓢 : Σₕ , Σₛ ⊢ₛ 𝓢) → (Σₕ ++ [ T ]) , Σₛ ⊢ₛ 𝓢
 ⊢𝓢-extend-𝟙 T ⊢𝓢 = ⊢𝓢-extend-𝟙-aux T ⊢𝓢
 
-{- needed?
-⊢𝓗-extend-𝟚-aux : ∀ {Σₛ} {xs : List Val} → (S : QType)
-  → Pointwise (λ v T′ → ⟨ Σₕₛ ⟩⊢[ v ⦂ (T′ ^ 𝟙)]) xs Σₛ
-  → Pointwise (λ v T′ → ⟨ (extend-Σ Σₕₛ 𝟚 S) ⟩⊢[ v ⦂ (T′ ^ 𝟙)] ) xs Σₛ
-⊢𝓗-extend-𝟚-aux S [] = []
-⊢𝓗-extend-𝟚-aux S (x∼y ∷ pws) = ([⦂]-≼ₕₛ (≼ₕₛ-extend-Σ 𝟚 S) x∼y) ∷ ⊢𝓗-extend-𝟚-aux S pws
-
-⊢𝓗-extend-𝟚 : (S : QType) → (⊢𝓗 : Σₕₛ ⊢ₕ 𝓗) → extend-Σ Σₕₛ 𝟚 S ⊢ₕ 𝓗
-⊢𝓗-extend-𝟚 S ⊢𝓗 = ⊢𝓗-extend-𝟚-aux S ⊢𝓗
--}
 
 
 ⊢𝓢-extend-𝟚-aux : ∀ {Σᵣ : List QType} {xs : List Val}

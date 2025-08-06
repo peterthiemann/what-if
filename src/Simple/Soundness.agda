@@ -31,7 +31,7 @@ open import Simple.Wellformedness
 
 -- assumptions and results for the soundness theorem
 
-record Assumption (Σₕ : HType) (Σₛ : SType) (𝓗 : Heap) (𝓢 : Stack) (Γ : Context) (𝓔 : Env) (S : QType) (q : Qual) : Set where
+record Assumption (Σₕ : HType) (Σₛ : SType) (𝓗 : Heap) (𝓢 : Stack) (Γ : Ctx) (𝓔 : Env) (S : QType) (q : Qual) : Set where
   field
     ↓⊢𝓗 : Σₕ ⊢ₕ 𝓗
     ↓⊢𝓢 : Σₕ , Σₛ ⊢ₛ 𝓢
@@ -41,7 +41,7 @@ record Assumption (Σₕ : HType) (Σₛ : SType) (𝓗 : Heap) (𝓢 : Stack) (
 
 
 --! SoundnessResult
-record Result (Σₕ : HType) (Σₛ : SType) (v : Val) (S : QType)
+record Res (Σₕ : HType) (Σₛ : SType) (v : Val) (S : QType)
               (𝓗′ : Heap) (𝓢 𝓢′ : Stack) : Set where
   field
     ↑Σₕ′ : HType
@@ -56,7 +56,7 @@ record Result (Σₕ : HType) (Σₛ : SType) (v : Val) (S : QType)
     ↑wf-𝓗 : Wellformed-Heap 𝓢′ 𝓗′
     ↑wf-𝓢  : Wellformed-Stack 𝓢′
 
-open Result
+open Res
 
 ---- soundness theorem of evaluation
 
@@ -71,7 +71,7 @@ eval-soundness :
   → q-of S ≤ q
   → Γ ⊢ e ⦂ S
   → 𝓔 , 𝓗 , 𝓢 ⊢ e ⇓[ q ] v ⊣ 𝓗′ , 𝓢′
-  → Result Σₕ Σₛ v S 𝓗′ 𝓢 𝓢′
+  → Res Σₕ Σₛ v S 𝓗′ 𝓢 𝓢′
 
 -- subsumption
 
