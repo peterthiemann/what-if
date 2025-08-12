@@ -10,7 +10,7 @@
 
 \usepackage{listings}
 \usepackage{agda}
-\usepackage{bbm}
+% \usepackage{bbm}
 \usepackage{mathpartir}
 \usepackage{tikz}
 \usetikzlibrary{positioning}
@@ -29,13 +29,30 @@
 %% the commands and values with those provided to you when you
 %% complete the rights form.
 
-\copyrightyear{2025}
-\acmYear{2025}
+% \copyrightyear{2025}
+% \acmYear{2025}
+% \setcopyright{cc}
+% \setcctype{by}
+% \acmConference[OLIVIERFEST '25]{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday }{October 12--18, 2025}{Singapore, Singapore}
+% \acmBooktitle{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday (OLIVIERFEST '25), October 12--18, 2025, Singapore, Singapore}\acmDOI{10.1145/3759427.3760373}
+% \acmISBN{979-8-4007-2150-2/2025/10}
+
+%%% The following is specific to OLIVIERFEST '25 and the paper
+%%% 'What I Always Wanted to Know about Second Class Values'
+%%% by Peter Thiemann.
+%%%
 \setcopyright{cc}
 \setcctype{by}
-\acmConference[OLIVIERFEST '25]{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday }{October 12--18, 2025}{Singapore, Singapore}
-\acmBooktitle{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday (OLIVIERFEST '25), October 12--18, 2025, Singapore, Singapore}\acmDOI{10.1145/3759427.3760373}
-\acmISBN{979-8-4007-2150-2/2025/10}
+\acmDOI{10.1145/3759427.3760373}
+\acmYear{2025}
+\copyrightyear{2025}
+\acmISBN{979-8-4007-2150-2/25/10}
+\acmConference[OLIVIERFEST '25]{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday}{October 12--18, 2025}{Singapore, Singapore}
+\acmBooktitle{Proceedings of the Workshop Dedicated to Olivier Danvy on the Occasion of His 64th Birthday (OLIVIERFEST '25), October 12--18, 2025, Singapore, Singapore}
+\received{2025-07-15}
+\received[accepted]{2025-07-31}
+
+
 
 %%
 %% Submission ID.
@@ -301,9 +318,9 @@ Agda's syntax.
 \subsection{Qualifiers}
 \label{sec:qualifiers}
 
-The qualifiers {\AOne} and {\ATwo} are used throughout in types and
-expressions. The intuition is that {\AOne} classifies heap-related ``things'' and {\ATwo} classifies
-stack-related ``things''.  They are ranged over by $q$ and show up in the syntax of
+Qualifiers $q$ are used throughout in types and
+expressions. The intuition is that qualifier {\AOne} classifies heap-related ``things'' and {\ATwo} classifies
+stack-related ``things''.  They show up in the syntax of
 types and expressions and also as indices for the evaluation
 judgment. Qualifiers come with two, subtly different, semantics which
 we make more precise in each case and discuss in the conclusion.
@@ -922,6 +939,35 @@ exploration to future work.
   feedback that improved the paper significanty.
   Thanks also to ChatGPT for drawing Figure~\ref{fig:runtime-configuration}.
 \end{acks}
+
+\section*{Data Availability Statement}
+%%% To help readers understand the state of the intended artifact, we
+%%% ask you to add a section just before references titled
+%%% Data-Availability Statement in the initial submission. This will
+%%% not count towards the page limit, but please limit it to at most a
+%%% few paragraphs (usually one paragraph suffices). 
+
+%%% In it, indicate whether an artifact exists, its nature and
+%%% limitations, and whether it will be submitted for Artifact
+%%% Evaluation. This section should ideally also include links to
+%%% preliminary versions of (anonymized) artifacts, datasets, and so
+%%% on that reviewers may find useful (but are not obliged to
+%%% follow). The statement is not meant to be a detailed description
+%%% of how to use the artifact; that should accompany the artifact
+%%% itself. 
+
+%%% It is understood that some papers have no artifacts but, given the
+%%% broad range of what constitutes an artifact, it would be helpful
+%%% to readers to explain why the paper has none. 
+
+%%% Accepted papers that fail to provide an artifact after promising one will be asked to explain why they did not do so.
+
+%%% Artifact Evaluation submission will closely follow paper
+%%% notification, so make sure you check the Artifact Call as soon as
+%%% you submit your paper. 
+
+The Agda proof scripts are submitted as an artifact~\cite{thiemann25:_artif_what_i_alway_wanted}.
+
 
 %%
 %% The next two lines define the bibliography style to be used, and
