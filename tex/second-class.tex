@@ -6,11 +6,11 @@
 %% for your publication.
 %%
 %%
-\documentclass[sigplan,review,dvipsnames,screen,10pt]{acmart}
+\documentclass[sigplan,dvipsnames,screen]{acmart}
 
 \usepackage{listings}
 \usepackage{agda}
-% \usepackage{bbm}
+% \usepackage{bbm}  % using bbm results in using Type 3 fonts
 \usepackage{mathpartir}
 \usepackage{tikz}
 \usetikzlibrary{positioning}
@@ -52,26 +52,10 @@
 \received{2025-07-15}
 \received[accepted]{2025-07-31}
 
-
-
-%%
-%% Submission ID.
-%% Use this when submitting an article to a sponsored event. You'll
-%% receive a unique submission ID from the organizers
-%% of the event, and this ID should be used as the parameter to this command.
-%%\acmSubmissionID{123-A56-BU3}
-
-
 \begin{document}
 
-\title{What I Always Wanted to Know About Second Class Values}
+\title{What I Always Wanted to Know about Second Class Values}
 
-%%
-%% The "author" command and its associated commands are used to define
-%% the authors and their affiliations.
-%% Of note is the shared affiliation of the first two authors, and the
-%% "authornote" and "authornotemark" commands
-%% used to denote shared contribution to the research.
 \author{Peter Thiemann}
 \email{thiemann@acm.org}
 \orcid{0000-0002-9000-1239}
@@ -302,15 +286,6 @@ repository\footnote{\url{https://github.com/peterthiemann/what-if.git}}.
 The main body of this paper contains and comments on excerpts of this
 mechanized development. We expect readers to be reasonably fluent with
 Agda's syntax. 
-
-% In the conclusions, we return to the questions raised in the abstract.
-% \begin{itemize}
-% \item What, exactly, is the meaning of a type qualifier?  
-% \item Can we implement this scheme with a type-based, selective CPS
-%   translation?
-% \item Can we extend the formal framework of previous work
-%   with first-class and second-class references?
-% \end{itemize}
 
 \section{Syntax}
 \label{sec:syntax}
@@ -941,30 +916,6 @@ exploration to future work.
 \end{acks}
 
 \section*{Data Availability Statement}
-%%% To help readers understand the state of the intended artifact, we
-%%% ask you to add a section just before references titled
-%%% Data-Availability Statement in the initial submission. This will
-%%% not count towards the page limit, but please limit it to at most a
-%%% few paragraphs (usually one paragraph suffices). 
-
-%%% In it, indicate whether an artifact exists, its nature and
-%%% limitations, and whether it will be submitted for Artifact
-%%% Evaluation. This section should ideally also include links to
-%%% preliminary versions of (anonymized) artifacts, datasets, and so
-%%% on that reviewers may find useful (but are not obliged to
-%%% follow). The statement is not meant to be a detailed description
-%%% of how to use the artifact; that should accompany the artifact
-%%% itself. 
-
-%%% It is understood that some papers have no artifacts but, given the
-%%% broad range of what constitutes an artifact, it would be helpful
-%%% to readers to explain why the paper has none. 
-
-%%% Accepted papers that fail to provide an artifact after promising one will be asked to explain why they did not do so.
-
-%%% Artifact Evaluation submission will closely follow paper
-%%% notification, so make sure you check the Artifact Call as soon as
-%%% you submit your paper. 
 
 The Agda proof scripts are submitted as an artifact~\cite{thiemann25:_artif_what_i_alway_wanted}.
 
