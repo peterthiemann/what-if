@@ -54,7 +54,7 @@
 
 \begin{document}
 
-\title{What I Always Wanted to Know about Second Class Values}
+\title[What I Always Wanted to Know about Second Class Values]{What I Always Wanted to Know\\about Second Class Values}
 
 \author{Peter Thiemann}
 \email{thiemann@acm.org}
@@ -535,7 +535,7 @@ behavior for values in a reference. Rule $\ACon{SQual}$ enforces that
 the top-level qualifier can only be subsumed by a larger qualifier. This relation is taken from
 \citet{DBLP:conf/ecoop/XhebrajB0R22}, but extended with reference types.
 
-\subsection{Typing contexts}
+\subsection{Typing Contexts}
 \label{sec:typing-contexts}
 
 Formation of typing contexts $\Gamma$ is as usual with a slight
@@ -550,7 +550,7 @@ representation with explicit identifiers because we define the
 semantics without recurse to substitution.
 \ContextLookup
 
-\subsection{Typing rules}
+\subsection{Typing Rules}
 \label{sec:typing-rules}
 \begin{figure}[tp]
   \TypingRules  
@@ -585,7 +585,7 @@ value is never put on the heap. It is either directly consumed or
 stored on the stack. In contrast, a first class value can be put on
 the heap.
 
-\subsection{Run-time typing}
+\subsection{Run-Time Typing}
 \label{sec:run-time-typing}
 \begin{figure}[tp]
   \ValueTyping
@@ -643,7 +643,7 @@ type (if $q = \ATwo$). The \verb|^^| operators make up for the
 difference as $\ACRef$ requires a full qualified type. Their
 definition is technical but straightforward.
 
-\subsection{Typing stacks and heaps }
+\subsection{Typing Stacks and Heaps }
 \label{sec:typing-stacks-heaps}
 
 Heap typing and stack typing are both straightforward. The typing
@@ -840,7 +840,7 @@ exploration to future work.
 To finish up, let's get back to the question raised in the abstract and
 add another one that points to future work.
 
-\subsection*{What, exactly, is the meaning of a type qualifier?}
+\subsection{What, Exactly, Is the Meaning of a Type Qualifier?}
 
 The meaning depends on the respective purpose. The meaning for
 \emph{specifying allocation} is $\AOne \to$ heap and $\ATwo \to$ stack. Another purpose
@@ -863,7 +863,7 @@ value will never be put on the heap'' (directly or indirectly).
   destructed at this point of evaluation.
 \end{itemize}
 
-\subsection*{Can we implement this scheme with a type-based, selective CPS translation?}
+\subsection{Can We Implement This Scheme with a Type-Based, Selective CPS Translation?}
 
 Let's first clarify what we mean with this question. The classic
 approach of compiling with continuations
@@ -902,11 +902,9 @@ calculus would be amenable to a selective CPS translation, but one
 would also have to discuss coherence of subsumption. We leave this
 exploration to future work.
 
-\subsection*{Can we extend the formal framework of previous work
-  with first-class and second-class references?}
 
 \begin{acks}
-  Thanks to Julius Fischer for the many discussions on the subject. He
+  Thanks to Julius Fischer for many discussions on the subject. He
   implemented a prototype interpreter for $\LamOurs$ as part of his
   bachelor
   thesis.\footnote{\url{https://github.com/Proglang-Uni-Freiburg/LambdaCPS.git}}
